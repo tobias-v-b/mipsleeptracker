@@ -1,50 +1,113 @@
 <!DOCTYPE html>
-<html lang="de">
+<html>
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Sleep Tracker</title>
-  <style>
-    body { font-family: sans-serif; text-align: center; padding: 40px; background: #111; color: white; }
-    button { padding: 15px 30px; font-size: 18px; border-radius: 10px; border: none; background: #4CAF50; color: white; }
-    .wert { font-size: 64px; font-weight: bold; color: #4CAF50; }
-    .label { font-size: 18px; color: #aaa; }
-  </style>
+    <title>Live Sleep Tracker</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
+
 <body>
-  <h1>Sleep Tracker</h1>
-  <button onclick="verbinden()">ESP32 verbinden</button>
-  
-  <p class="label">Herzfrequenz</p>
-  <p class="wert" id="bpm">--</p>
-  
-  <p class="label">Sauerstoff</p>
-  <p class="wert" id="spo2">--</p>
 
-  <script>
-    const SERVICE_UUID        = "12345678-1234-1234-1234-123456789abc";
-    const CHARACTERISTIC_UUID = "abcd1234-ab12-ab12-ab12-abcdef123456";
+<h2>Live Sleep Tracker</h2>
 
-    async function verbinden() {
-      // 1. Browser fragt nach BLE Gerät → Popup erscheint
-      const device = await navigator.bluetooth.requestDevice({
-        filters: [{ name: 'SleepTracker' }],
-        optionalServices: [SERVICE_UUID]
-      });
+<button onclick="connect()">Verbinden</button>
 
-      // 2. Verbindung aufbauen
-      const server = await device.gatt.connect();
-      const service = await server.getPrimaryService(SERVICE_UUID);
-      const characteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+<h3>Herzfrequenz</h3>
+<canvas id="hrChart"></canvas>
 
-      // 3. Auf neue Daten warten (wird automatisch aufgerufen)
-      await characteristic.startNotifications();
-      characteristic.addEventListener('characteristicvaluechanged', (event) => {
-        const text = new TextDecoder().decode(event.target.value);
-        const [bpm, spo2] = text.split(',');
-        document.getElementById('bpm').textContent = bpm + ' BPM';
-        document.getElementById('spo2').textContent = spo2 + ' %';
-      });
+<h3>Bewegung</h3>
+<canvas id="movChart"></canvas>
+
+<script>
+
+// UUIDs von deinem ESP
+const SERVICE_UUID = "12345678-1234-1234-1234-123456789abc";
+const CHARACTERISTIC_UUID = "abcd1234-ab12-ab12-ab12-abcdef123456";
+
+// Datenarrays
+let hrData = [];
+let movData = [];
+let labels = [];
+
+// Graphen erstellen
+let hrChart = new Chart(document.getElementById("hrChart"), {
+    type: "line",
+    data: {
+        labels: labels,
+        datasets: [{
+            label: "Herzfrequenz",
+            data: hrData,
+            borderWidth: 2
+        }]
     }
-  </script>
+});
+
+let movChart = new Chart(document.getElementById("movChart"), {
+    type: "line",
+    data: {
+        labels: labels,
+        datasets: [{
+            label: "Bewegung",
+            data: movData,
+            borderWidth: 2
+        }]
+    }
+});
+
+// Verbindung herstellen
+async function connect() {
+
+    try {
+
+        const device = await navigator.bluetooth.requestDevice({
+            filters: [{ services: [SERVICE_UUID] }]
+        });
+
+        const server = await device.gatt.connect();
+
+        const service = await server.getPrimaryService(SERVICE_UUID);
+        const characteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+
+        await characteristic.startNotifications();
+
+        characteristic.addEventListener('characteristicvaluechanged', handleData);
+
+        console.log("Verbunden mit ESP");
+
+    } catch (error) {
+        console.log("Fehler:", error);
+    }
+}
+
+// Daten empfangen
+function handleData(event) {
+
+    // Daten vom ESP lesen
+    const value = new TextDecoder().decode(event.target.value);
+
+    // Erwartetes Format: "62,0.10"
+    const parts = value.split(",");
+
+    const hr = Number(parts[0]);
+    const mov = Number(parts[1]);
+
+    // Neue Daten hinzufügen
+    labels.push(labels.length);
+    hrData.push(hr);
+    movData.push(mov);
+
+    // Optional: nur letzte 100 Werte behalten
+    if (labels.length > 100) {
+        labels.shift();
+        hrData.shift();
+        movData.shift();
+    }
+
+    // Graphen aktualisieren
+    hrChart.update();
+    movChart.update();
+}
+
+</script>
+
 </body>
 </html>
