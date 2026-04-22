@@ -93,15 +93,15 @@ function handleData(event) {
 
     // Neue Daten hinzufügen
     labels.push(labels.length);
+    if(hr != 0)
+    {
     hrData.push(hr);
-    movData.push(mov);
-
-    // Optional: nur letzte 100 Werte behalten
-    if (labels.length > 100) {
-        labels.shift();
-        hrData.shift();
-        movData.shift();
     }
+    if(mov != 0)
+    {
+    movData.push(mov);
+    }
+
 
     // Graphen aktualisieren
     hrChart.update();
