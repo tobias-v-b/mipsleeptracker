@@ -59,7 +59,7 @@ async function connect() {
     try {
 
         const device = await navigator.bluetooth.requestDevice({
-
+        filters: [{ name: 'SleepTracker' }],
         });
 
         const server = await device.gatt.connect();
