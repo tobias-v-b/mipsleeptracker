@@ -89,6 +89,7 @@ datasets: [{
 async function connect() {
     const statusText = document.getElementById("statusText");
     try {
+                    filters: [{ services: [SERVICE_UUID] }]
         statusText.innerText = "Status: Scanne nach Geräten...";
         statusText.className = "status";
 
