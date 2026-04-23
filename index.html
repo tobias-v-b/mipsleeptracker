@@ -59,7 +59,9 @@ async function connect() {
     try {
 
         const device = await navigator.bluetooth.requestDevice({
-acceptAllDevices: true,
+filters: [{
+        name: 'SleepTracker' // Exact case-sensitive name
+      }],
 optionalServices: [SERVICE_UUID]
         });
 
