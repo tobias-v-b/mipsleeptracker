@@ -1,117 +1,153 @@
 <!DOCTYPE html>
-<html>
+<html lang="de">
 <head>
-    <title>Live Sleep Tracker</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Sleep Tracker Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; margin: 20px; color: #2c3e50; background-color: #ecf0f1; }
+       .container { max-width: 850px; margin: auto; background: white; padding: 25px; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
+        button { background-color: #3498db; color: white; border: none; padding: 12px 24px; font-size: 16px; border-radius: 6px; cursor: pointer; transition: background 0.3s; }
+        button:hover { background-color: #2980b9; }
+       .status { margin-top: 15px; font-weight: 600; padding: 10px; border-radius: 4px; }
+       .connected { background-color: #d4edda; color: #155724; }
+       .disconnected { background-color: #f8d7da; color: #721c24; }
+        canvas { margin-bottom: 40px; margin-top: 10px; }
+    </style>
 </head>
 
 <body>
+<div class="container">
+    <h2>Live Sleep Tracker Dashboard</h2>
+    
+    <button id="connectBtn" onclick="connect()">Mit Tracker Verbinden (BLE)</button>
+    <div id="statusText" class="status disconnected">Status: Getrennt</div>
 
-<h2>Live Sleep Tracker</h2>
+    <h3>Herzfrequenz (BPM)</h3>
+    <canvas id="hrChart"></canvas>
 
-<button onclick="connect()">Verbinden</button>
-
-<h3>Herzfrequenz</h3>
-<canvas id="hrChart"></canvas>
-
-<h3>Bewegung</h3>
-<canvas id="movChart"></canvas>
+    <h3>Kinetische Bewegungsintensität</h3>
+    <canvas id="movChart"></canvas>
+</div>
 
 <script>
-
-// UUIDs von deinem ESP
+// BLE UUID-Deklarationen (korrelieren mit der Firmware)
 const SERVICE_UUID = "12345678-1234-1234-1234-123456789abc";
 const CHARACTERISTIC_UUID = "abcd1234-ab12-ab12-ab12-abcdef123456";
 
-// Datenarrays
-let hrData = [];
-let movData = [];
-let labels = [];
+// Array-Dimensionierung für das FIFO-Puffermanagement
+const MAX_DATA_POINTS = 100;
+let hrData =;
+let movData =;
+let labels =;
 
-// Graphen erstellen
+// Globale Render-Konfiguration zur Performance-Optimierung
+const commonOptions = {
+    responsive: true,
+    animation: false, // Deaktivierung der Animation verhindert CPU-Spikes bei 1Hz Updates
+    scales: { x: { display: false } } // X-Achse optisch bereinigen
+};
+
+// Initialisierung der Herzraten-Graphen
 let hrChart = new Chart(document.getElementById("hrChart"), {
     type: "line",
     data: {
         labels: labels,
-        datasets: [{
-            label: "Herzfrequenz",
-            data: hrData,
-            borderWidth: 2
-        }]
-    }
+        datasets:
+    },
+    options: Object.assign({}, commonOptions, {
+        scales: { y: { min: 0, max: 160 } }
+    })
 });
 
+// Initialisierung der Aktigraphie-Graphen
 let movChart = new Chart(document.getElementById("movChart"), {
     type: "line",
     data: {
         labels: labels,
-        datasets: [{
-            label: "Bewegung",
-            data: movData,
-            borderWidth: 2
-        }]
-    }
+        datasets:
+    },
+    options: Object.assign({}, commonOptions, {
+        scales: { y: { min: 0, max: 5 } }
+    })
 });
 
-// Verbindung herstellen
+// Bluetooth Verbindungs-Routine (Web Bluetooth API)
 async function connect() {
-
+    const statusText = document.getElementById("statusText");
     try {
+        statusText.innerText = "Status: Scanne nach Geräten...";
+        statusText.className = "status";
 
         const device = await navigator.bluetooth.requestDevice({
-filters: [{
-        name: 'SleepTracker' // Exact case-sensitive name
-      }],
-optionalServices: [SERVICE_UUID]
+            filters: }]
         });
 
-        const server = await device.gatt.connect();
+        // Event-Binding zur Handhabung physischer Verbindungsabbrüche
+        device.addEventListener('gattserverdisconnected', onDisconnected);
 
+        const server = await device.gatt.connect();
         const service = await server.getPrimaryService(SERVICE_UUID);
         const characteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
 
+        // Abonnieren der serverseitigen Notifications
         await characteristic.startNotifications();
-
         characteristic.addEventListener('characteristicvaluechanged', handleData);
 
-        console.log("Verbunden mit ESP");
+        statusText.innerText = "Status: Verbunden mit [" + device.name + "]";
+        statusText.className = "status connected";
 
     } catch (error) {
-        console.log("Fehler:", error);
+        console.error("BLE Handshake fehlgeschlagen:", error);
+        statusText.innerText = "Status: Verbindungsaufbau blockiert oder fehlgeschlagen.";
+        statusText.className = "status disconnected";
     }
 }
 
-// Daten empfangen
-function handleData(event) {
+// Graceful Degradation bei Verbindungsverlust
+function onDisconnected() {
+    const statusText = document.getElementById("statusText");
+    statusText.innerText = "Status: Verbindung verloren. Tracker außerhalb der Reichweite.";
+    statusText.className = "status disconnected";
+    
+    // Sicherheitspuffer leeren (optional), oder Nullen einspeisen
+    handleData({ target: { value: new TextEncoder().encode("0,0.00") } }, true);
+}
 
-    // Daten vom ESP lesen
+// Callback-Handler für eingehende Data-Streams
+function handleData(event, isArtificial = false) {
+    // Dekodierung des Byte-Arrays in einen lesbaren String
     const value = new TextDecoder().decode(event.target.value);
-
-    // Erwartetes Format: "62,0.10"
+    
+    // Sanity Check: Format-Validierung ("BPM,MOV")
     const parts = value.split(",");
+    if(parts.length!== 2) return;
 
-    const hr = Number(parts[0]);
-    const mov = Number(parts[1]);
+    const hr = Number(parts);
+    const mov = Number(parts);
 
-    // Neue Daten hinzufügen
+    // Ignoriere Payload-Korruption (z.B. durch unvollständige Bits)
+    if(isNaN(hr) |
 
-    if(hr != 0)
-    {
-    labels.push(labels.length);
+| isNaN(mov)) return;
+
+    // Zeitstempel generieren für die (versteckte) X-Achse
+    labels.push(new Date().toLocaleTimeString());
     hrData.push(hr);
-    }
-    if(mov != 0)
-    {
     movData.push(mov);
+
+    // FIFO Pufferlogik: Älteste Werte extrahieren (Laufband-Effekt)
+    if (labels.length > MAX_DATA_POINTS) {
+        labels.shift();
+        hrData.shift();
+        movData.shift();
     }
 
-
-    // Graphen aktualisieren
+    // Explizites Re-Rendering der Canvas-Instanzen
     hrChart.update();
     movChart.update();
 }
-
 </script>
-
 </body>
 </html>
