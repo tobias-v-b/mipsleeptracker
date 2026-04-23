@@ -89,12 +89,13 @@ datasets: [{
 async function connect() {
     const statusText = document.getElementById("statusText");
     try {
-         acceptAllDevices = true;
+
         statusText.innerText = "Status: Scanne nach Geräten...";
         statusText.className = "status";
 
         const device = await navigator.bluetooth.requestDevice({
-
+    acceptAllDevices: true,
+    optionalServices: [SERVICE_UUID]
         });
 
         // Event-Binding zur Handhabung physischer Verbindungsabbrüche
