@@ -93,7 +93,7 @@ async function connect() {
         statusText.className = "status";
 
         const device = await navigator.bluetooth.requestDevice({
-            filters: [{ name: 'ESP32_SleepTracker' }]
+
         });
 
         // Event-Binding zur Handhabung physischer Verbindungsabbrüche
