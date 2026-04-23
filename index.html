@@ -38,9 +38,9 @@ const CHARACTERISTIC_UUID = "abcd1234-ab12-ab12-ab12-abcdef123456";
 
 // Array-Dimensionierung für das FIFO-Puffermanagement
 const MAX_DATA_POINTS = 100;
-let hrData =;
-let movData =;
-let labels =;
+let hrData = [];
+let movData = [];
+let labels = [];
 
 // Globale Render-Konfiguration zur Performance-Optimierung
 const commonOptions = {
@@ -54,7 +54,13 @@ let hrChart = new Chart(document.getElementById("hrChart"), {
     type: "line",
     data: {
         labels: labels,
-        datasets:
+        datasets: [{
+    label: "BPM",
+    data: hrData,
+    borderColor: "#e74c3c",
+    tension: 0.3,
+    pointRadius: 0
+}]
     },
     options: Object.assign({}, commonOptions, {
         scales: { y: { min: 0, max: 160 } }
@@ -66,7 +72,13 @@ let movChart = new Chart(document.getElementById("movChart"), {
     type: "line",
     data: {
         labels: labels,
-        datasets:
+datasets: [{
+    label: "Bewegung",
+    data: movData,
+    borderColor: "#3498db",
+    tension: 0.3,
+    pointRadius: 0
+}]
     },
     options: Object.assign({}, commonOptions, {
         scales: { y: { min: 0, max: 5 } }
@@ -81,7 +93,7 @@ async function connect() {
         statusText.className = "status";
 
         const device = await navigator.bluetooth.requestDevice({
-            filters: }]
+            filters: [{ services: [SERVICE_UUID] }]
         });
 
         // Event-Binding zur Handhabung physischer Verbindungsabbrüche
@@ -124,13 +136,11 @@ function handleData(event, isArtificial = false) {
     const parts = value.split(",");
     if(parts.length!== 2) return;
 
-    const hr = Number(parts);
-    const mov = Number(parts);
+ const hr = Number(parts[0]);
+const mov = Number(parts[1]);
 
     // Ignoriere Payload-Korruption (z.B. durch unvollständige Bits)
-    if(isNaN(hr) |
-
-| isNaN(mov)) return;
+if(isNaN(hr) || isNaN(mov)) return;
 
     // Zeitstempel generieren für die (versteckte) X-Achse
     labels.push(new Date().toLocaleTimeString());
